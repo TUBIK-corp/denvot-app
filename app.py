@@ -69,7 +69,7 @@ class VideoWindow(tk.Toplevel):
         corrected_frames = self.adjust_colors()
 
         threading.Thread(target=self.play_audio, args=(audio_path,)).start()
-        self.update_frame(0, corrected_frames)
+        threading.Thread(target=self.update_frame, args=(0, corrected_frames)).start()
 
     def play_audio(self, audio_file):
         wave_obj = WaveObject.from_wave_file(audio_file)
@@ -81,8 +81,12 @@ class VideoWindow(tk.Toplevel):
             image = corrected_frames[frame_number]
             self.video_image = ImageTk.PhotoImage(image)
             self.video_canvas.create_image(self.x, self.y, anchor=tk.NW, image=self.video_image)
+            # threading.Thread(target=self.create_img, args=(self.video_image)).start()
 
             self.master.after(int(1000 // self.video.fps), self.update_frame, frame_number + 1, corrected_frames)
+
+    # def create_img(self, image):
+    #     self.video_canvas.create_image(self.x, self.y, anchor=tk.NW, image=image)
 
 class App:
     def __init__(self, master):
@@ -114,8 +118,11 @@ class App:
         self.text_entry = tk.Entry(self.text_frame, width=50)
         self.text_entry.pack(side=tk.LEFT)
 
-        self.text_entry.bind("<Control-C>", self.copy_text)
-        self.text_entry.bind("<Control-V>", self.paste_text)
+        self.copy_button = tk.Button(self.text_frame, text="Copy", command=self.copy_text)
+        self.copy_button.pack(side=tk.LEFT)
+
+        self.paste_button = tk.Button(self.text_frame, text="Paste", command=self.paste_text)
+        self.paste_button.pack(side=tk.LEFT)
 
         self.generate_button = tk.Button(self.text_frame, text="Generate Video", command=self.generate_video)
         self.generate_button.pack(side=tk.LEFT)
@@ -125,11 +132,11 @@ class App:
 
         self.master.protocol("WM_DELETE_WINDOW", self.on_closing)
 
-    def copy_text(self, event):
+    def copy_text(self):
         self.master.clipboard_clear()
-        self.master.clipboard_append(self.text_entry.selection_get())
+        self.master.clipboard_append(self.text_entry.get())
 
-    def paste_text(self, event):
+    def paste_text(self):
         self.text_entry.insert(tk.INSERT, self.master.clipboard_get())
 
     def on_closing(self):
