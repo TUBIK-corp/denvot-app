@@ -80,13 +80,12 @@ class VideoWindow(tk.Toplevel):
         if frame_number < len(corrected_frames):
             image = corrected_frames[frame_number]
             self.video_image = ImageTk.PhotoImage(image)
-            self.video_canvas.create_image(self.x, self.y, anchor=tk.NW, image=self.video_image)
-            # threading.Thread(target=self.create_img, args=(self.video_image)).start()
+            threading.Thread(target=self.create_img, args=(self.video_image,)).start()
 
             self.master.after(int(1000 // self.video.fps), self.update_frame, frame_number + 1, corrected_frames)
 
-    # def create_img(self, image):
-    #     self.video_canvas.create_image(self.x, self.y, anchor=tk.NW, image=image)
+    def create_img(self, video_image):
+        self.video_canvas.create_image(self.x, self.y, anchor=tk.NW, image=video_image)
 
 class App:
     def __init__(self, master):
