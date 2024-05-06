@@ -11,43 +11,83 @@ import threading
 import tempfile
 import time
 
+# big_file = "pupsik.mp4"
+big_file = "images/big_pups_2.png"
+face_file = "pupsik_face.mp4"
+# face_file = "images/pups_2.png"
+
+
 class VideoWindow(tk.Toplevel):
     def __init__(self, master=None):
         super().__init__(master)
         self.title("Video Output")
-        self.video_canvas = tk.Canvas(self, width=528, height=528)
+        self.video_canvas = tk.Canvas(self, width=1080, height=1080)
         self.video_canvas.pack()
         self.audio_path = None
 
-        big_pups_image = Image.open("images/big_pups_2.png")
-        self.big_photo = ImageTk.PhotoImage(big_pups_image)
+        self.big_vid = False
+        self.face_vid = False
 
-        mini_pups_image = Image.open("images/pups_2.png")
+        if big_file.split(".")[-1] == "mp4":
+            self.big_vid = True
+            self.background_video = VideoFileClip(big_file)
+            self.background_frames = [Image.fromarray(self.background_video.get_frame(i*(1/self.background_video.fps))) for i in range(int(self.background_video.duration * self.background_video.fps))]
+        elif big_file.split(".")[-1] == "png":
+            big_pups_image = Image.open(big_file)
+            self.big_photo = ImageTk.PhotoImage(big_pups_image)
+            self.video_canvas.create_image(0, 0, anchor=tk.NW, image=self.big_photo)
 
-        self.reference_image = numpy.array(mini_pups_image)
+        self.current_frame_index = 0
 
-        self.video_canvas.create_image(0, 0, anchor=tk.NW, image=self.big_photo)
-        
+        self.audio_path = None
+
+        if face_file.split(".")[-1] == "mp4":
+            self.face_vid = True
+
         self.video_canvas.bind("<Configure>", self.on_canvas_resize)
+
+    def update_background_frame(self, frame_number, corrected_frames, fps):
+        if frame_number < len(corrected_frames):
+            image = corrected_frames[frame_number]
+            x = (self.canvas_width - image.width) // 2
+            y = (self.canvas_height - image.height) // 2
+            self.video_image = ImageTk.PhotoImage(image)
+            threading.Thread(target=self.create_img, args=(self.video_image, x, y,)).start()
+
+            self.current_frame_index += 1
+            if self.current_frame_index >= len(corrected_frames) - 1: self.current_frame_index = 0
+
+            self.master.after(int(1000 // fps), self.update_background_frame, self.current_frame_index, corrected_frames, fps)
 
     def on_canvas_resize(self, event):
         self.canvas_width = self.video_canvas.winfo_width()
         self.canvas_height = self.video_canvas.winfo_height()
 
-        image_width = self.big_photo.width()
-        image_height = self.big_photo.height()
+        if not self.big_vid:
+            image_width = self.big_photo.width()
+            image_height = self.big_photo.height()
 
-        x = (self.canvas_width - image_width) // 2
-        y = (self.canvas_height - image_height) // 2
-        
-        self.video_canvas.delete("all")
-        self.video_canvas.create_image(x, y, anchor=tk.NW, image=self.big_photo)
+            x = (self.canvas_width - image_width) // 2
+            y = (self.canvas_height - image_height) // 2
+            
+            self.video_canvas.delete("all")
+            self.video_canvas.create_image(x, y, anchor=tk.NW, image=self.big_photo)
+        else: threading.Thread(target=self.update_background_frame, args=(self.current_frame_index, self.background_frames, self.background_video.fps)).start()
 
     def adjust_colors(self):
         corrected_frames = []
         for frame_number in range(int(self.video.duration * self.video.fps)):
             frame = self.video.get_frame(frame_number * (1/self.video.fps))
             image = Image.fromarray(frame)
+
+            if self.face_vid:
+                self.face_video = VideoFileClip(face_file)
+                self.reference_image = self.face_video.get_frame(0)
+            else:
+                self.reference_image = Image.open(face_file)
+
+            self.reference_image = numpy.array(self.reference_image)
+
             corrected_frame = Image.fromarray(color_transfer(self.reference_image, numpy.array(image)))
             corrected_frames.append(corrected_frame)
         return corrected_frames
@@ -80,12 +120,12 @@ class VideoWindow(tk.Toplevel):
         if frame_number < len(corrected_frames):
             image = corrected_frames[frame_number]
             self.video_image = ImageTk.PhotoImage(image)
-            threading.Thread(target=self.create_img, args=(self.video_image,)).start()
+            threading.Thread(target=self.create_img, args=(self.video_image, self.x, self.y,)).start()
 
             self.master.after(int(1000 // self.video.fps), self.update_frame, frame_number + 1, corrected_frames)
 
-    def create_img(self, video_image):
-        self.video_canvas.create_image(self.x, self.y, anchor=tk.NW, image=video_image)
+    def create_img(self, video_image, x, y):
+        self.video_canvas.create_image(x, y, anchor=tk.NW, image=video_image)
 
 class App:
     def __init__(self, master):
@@ -167,7 +207,7 @@ class App:
             messagebox.showerror("Error", "Please enter some text.")
 
     def generate_video_thread(self, text):
-        video_path = self.text2lip(text=text, image_path="images/pups_2.png", rvc_pitch=6)
+        video_path = self.text2lip(text=text, file_path=face_file, rvc_pitch=6)
         self.player_queue.append(video_path)
 
 def main():
